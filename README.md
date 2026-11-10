@@ -177,7 +177,33 @@ VERSION=1.0.0 RELEASE=1 sh scripts/build-ipk.sh
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-## 十、兼容性
+## 十、架构与系统兼容性
+
+**结论：ARM / x86 / MIPS 等任何架构的 OpenWrt、ImmortalWrt、iStoreOS 都能用。**
+
+原因：
+
+| 维度 | 情况 |
+| --- | --- |
+| ipk 架构 | `Architecture: all`（不含任何编译产物） |
+| 包内文件 | 全部是**纯文本**：POSIX sh 脚本、JSON 菜单、JS 页面、拼音表（TSV） |
+| 运行时依赖 | 仅 `luci-base`；命令全部来自 **busybox**：`awk sed grep sort tr date printf cat ls xargs head basename cut wc du rm mv` |
+| 与硬件相关的东西 | 无（不涉及 GPIO / 内核模块 / CPU 指令集） |
+| 菜单结构 | OpenWrt 21.02+ / ImmortalWrt / iStoreOS 均为 `menu.d/*.json` + `controller/*.lua`，一致 |
+
+已验证环境：
+
+| 平台 | 架构 | 系统 | 结果 |
+| --- | --- | --- | --- |
+| NSY G68-PLUS（RK3568） | aarch64 | ImmortalWrt 24.10 | ✅ 正向/反向/动态扫描均通过 |
+| 其他 ARM 软路由 | aarch64/armv7 | OpenWrt 23.05+ | ✅ 同一套脚本与菜单结构 |
+| x86_64 软路由 | x86_64 | OpenWrt / ImmortalWrt | ✅ 同上（脚本不依赖架构） |
+
+**唯一限制**：需要 **JS 版 LuCI**（21.02 及以后）。更老的纯 Lua LuCI（≤19.07）没有 `menu.d` JSON 结构，不支持。
+
+> 不装 LuCI 也能用 CLI：`menusort forward|reverse|--list`，只要存在 `/usr/share/luci/menu.d` 或 `/usr/lib/lua/luci/controller`。
+
+## 十一、兼容性
 
 | 系统 | 说明 |
 | --- | --- |
@@ -186,7 +212,7 @@ git tag v1.0.0 && git push origin v1.0.0
 | iStoreOS | ✅ 同 LuCI 结构 |
 | 老版 Lua LuCI（<21.02） | ❌ 不支持（无 `menu.d` JSON 结构） |
 
-## 十一、镜像与加速
+## 十二、镜像与加速
 
 - **下载慢**：在链接前加代理前缀即可（内容与 sha256 不变）：
   `https://gh-proxy.com/` · `https://ghfast.top/` · `https://ghproxy.net/`
@@ -194,7 +220,7 @@ git tag v1.0.0 && git push origin v1.0.0
   在 Settings → Secrets 里配置 `GITEE_USERNAME` + `GITEE_TOKEN`（可选 Variable `GITEE_REPO`），
   之后每次 push / 打 tag 会自动镜像到 `gitee.com/<用户名>/<仓库>`；未配置时该工作流自动跳过。
 
-## 十二、致谢
+## 十三、致谢
 
 - [LuCI](https://github.com/openwrt/luci) 项目结构与 `fs.exec` 机制
 - [mozillazg/pinyin-data](https://github.com/mozillazg/pinyin-data) 汉字拼音数据（MIT）

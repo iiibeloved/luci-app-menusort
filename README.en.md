@@ -120,6 +120,22 @@ VERSION=1.0.5 RELEASE=1 sh scripts/build-ipk.sh
 
 Pushing a `v*` tag builds and publishes automatically via GitHub Actions.
 
+## Architecture independence
+
+**Works on any architecture** — ARM, x86_64, MIPS, whatever runs OpenWrt / ImmortalWrt / iStoreOS:
+
+| Aspect | Detail |
+| --- | --- |
+| Package arch | `Architecture: all` — no compiled artifacts |
+| Files inside | Plain text only: POSIX sh script, JSON menu, JS view, pinyin TSV |
+| Runtime deps | `luci-base` only; every command comes from **busybox** (`awk sed grep sort tr date printf cat ls xargs head basename cut wc du rm mv`) |
+| Hardware-specific | None (no GPIO / kernel modules / CPU instructions) |
+| Menu layout | Identical on OpenWrt 21.02+ / ImmortalWrt / iStoreOS (`menu.d/*.json` + `controller/*.lua`) |
+
+Verified on aarch64 (RK3568, ImmortalWrt 24.10); x86_64 and other ARM targets use the same script and menu layout.
+
+**Only requirement**: JS-based LuCI (21.02+). Legacy Lua-only LuCI (≤19.07) has no `menu.d` JSON and is unsupported.
+
 ## Compatibility
 
 | System | Status |
