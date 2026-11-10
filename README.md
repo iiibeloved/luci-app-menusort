@@ -186,7 +186,15 @@ git tag v1.0.0 && git push origin v1.0.0
 | iStoreOS | ✅ 同 LuCI 结构 |
 | 老版 Lua LuCI（<21.02） | ❌ 不支持（无 `menu.d` JSON 结构） |
 
-## 十一、致谢
+## 十一、镜像与加速
+
+- **下载慢**：在链接前加代理前缀即可（内容与 sha256 不变）：
+  `https://gh-proxy.com/` · `https://ghfast.top/` · `https://ghproxy.net/`
+- **Gitee 镜像**：仓库内置可选工作流 `.github/workflows/mirror-gitee.yml`，
+  在 Settings → Secrets 里配置 `GITEE_USERNAME` + `GITEE_TOKEN`（可选 Variable `GITEE_REPO`），
+  之后每次 push / 打 tag 会自动镜像到 `gitee.com/<用户名>/<仓库>`；未配置时该工作流自动跳过。
+
+## 十二、致谢
 
 - [LuCI](https://github.com/openwrt/luci) 项目结构与 `fs.exec` 机制
 - [mozillazg/pinyin-data](https://github.com/mozillazg/pinyin-data) 汉字拼音数据（MIT）
