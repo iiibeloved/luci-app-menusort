@@ -30,7 +30,7 @@ LOG="${MENUSORT_LOG:-/tmp/menusort.log}"
 MODE=forward
 DRY=0
 LIST_ONLY=0
-VERSION="1.0.2"
+VERSION=$(cat /usr/share/menusort/version 2>/dev/null || echo dev)
 for a in "$@"; do
 	case "$a" in
 		reverse) MODE=reverse ;;

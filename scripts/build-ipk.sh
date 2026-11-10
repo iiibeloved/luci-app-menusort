@@ -14,6 +14,7 @@ cp -a htdocs "$WORK/data/www" 2>/dev/null || { mkdir -p "$WORK/data/www"; cp -a 
 find "$WORK/data" -type d -exec chmod 755 {} +
 find "$WORK/data" -type f -exec chmod 644 {} +
 chmod 755 "$WORK/data/usr/bin/menusort"
+printf '%s\n' "$VER" > "$WORK/data/usr/share/menusort/version"
 
 SIZE=$(du -sk "$WORK/data" | awk '{print $1}')
 cat > "$WORK/control/control" <<CTRL
