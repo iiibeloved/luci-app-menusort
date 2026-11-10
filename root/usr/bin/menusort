@@ -160,7 +160,7 @@ fi
 KEYS=$(build_keys)
 [ -n "$KEYS" ] || { echo "未发现 admin/services 菜单项"; exit 3; }
 
-[ "$MODE" = "reverse" ] && KEYS=$(printf '%s\n' "$KEYS" | tac)
+[ "$MODE" = "reverse" ] && KEYS=$(printf '%s\n' "$KEYS" | awk '{a[NR]=$0} END{for(i=NR;i>0;i--) print a[i]}')
 
 echo "== menusort ($MODE) =="
 i=10
