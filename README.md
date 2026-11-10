@@ -2,6 +2,8 @@
 
 > 一键把 LuCI「服务」菜单按 **英文名 A-Z → 中文名拼音** 排序，支持**正向 / 反向**，
 > 执行后页面自动强制刷新。适用于 **OpenWrt / ImmortalWrt / iStoreOS** 等使用 LuCI 的固件。
+>
+> 🌐 **English**: [README.en.md](README.en.md)
 
 [![build-ipk](https://github.com/iiibeloved/luci-app-menusort/actions/workflows/build.yml/badge.svg)](https://github.com/iiibeloved/luci-app-menusort/actions/workflows/build.yml)
 
