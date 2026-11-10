@@ -20,7 +20,37 @@ iStoreOS / ImmortalWrt 装了一堆应用后，「服务」菜单顺序完全由
 - 覆盖两类来源：JSON 菜单（`menu.d/*.json`）和 Lua 控制器（`controller/*.lua`，如 PassWall / OpenClash）；
 - 只动**顶层应用节点**，子菜单（如 `homeproxy/client`）不受影响。
 
-## 二、排序规则
+## 二、动态扫描（不写死应用列表）
+
+> 本应用**不内置任何应用清单**。每次点击「菜单排序」时，脚本会实时扫描：
+
+| 扫描来源 | 说明 |
+| --- | --- |
+| `/usr/share/luci/menu.d/*.json` | 所有以 `admin/services/<app>` 注册的 JS 菜单项（含 title / order） |
+| `/usr/lib/lua/luci/controller/*.lua` | 所有 `entry({"admin","services","<app>"}, …)` 的 Lua 菜单项（PassWall / OpenClash 等） |
+
+因此：**新装应用 → 点一次排序就自动纳入**，卸载应用后也会自动消失；不需要改脚本、不需要等更新。
+
+查看当前扫描到了什么（不改文件）：
+
+```sh
+menusort --list
+```
+
+示例输出：
+
+```
+== 扫描到的服务菜单应用（运行时）==
+  ddns-go          DDNS-Go              luci-app-ddns-go.json
+  openclash        OpenClash            openclash.lua
+  passwall         Pass Wall            passwall.lua
+  ...
+```
+
+> 测试方法：随便新建一个 `/usr/share/luci/menu.d/luci-app-zzz.json`，
+> 再执行 `menusort --dry-run`，能看到它被自动排进列表里 —— 说明没有写死。
+
+## 三、排序规则
 
 1. **英文名应用**在前，按英文名字母序（忽略大小写）；
 2. **中文名应用**在后，按**拼音**排序（内置 2 万+ 汉字拼音表，可做到「同首字母再按全拼」）；
@@ -35,7 +65,7 @@ KaiPlus → KSpeeder → Lucky → Navidrome → OpenClash → PassWall → UPnP
 局域网设备唤醒 → 局域网设备扫描 → 网络共享 → 网络唤醒 → 应用过滤 → 易有云完整版
 ```
 
-## 三、安装
+## 四、安装
 
 ### 方式 1：直接装 ipk（推荐）
 
@@ -58,7 +88,7 @@ make menuconfig     # LuCI → Applications → luci-app-menusort
 make -j$(nproc)
 ```
 
-## 四、使用
+## 五、使用
 
 ### LuCI 界面
 
@@ -78,9 +108,11 @@ make -j$(nproc)
 menusort              # 正向
 menusort reverse      # 反向
 menusort --dry-run    # 只打印结果，不修改文件
+menusort --list       # 列出运行时扫描到的服务菜单应用
+menusort --version    # 版本
 ```
 
-## 五、别名（把英文标题归到中文分组）
+## 六、别名（把英文标题归到中文分组）
 
 不少应用的菜单标题是英文 msgid（例如 `App Filter` 实际显示为「应用过滤」）。
 本应用提供别名文件 **`/etc/menusort.aliases`**，格式：
@@ -104,7 +136,7 @@ baidudrive=百度网盘
 
 自己装的特殊应用可以按同样格式追加一行，然后用 `menusort --dry-run` 检查效果。
 
-## 六、原理
+## 七、原理
 
 | 来源 | 处理方式 |
 | --- | --- |
@@ -114,7 +146,7 @@ baidudrive=百度网盘
 
 > 应用升级/重装会覆盖 `order`，届时重新点一次「正向排序」即可。
 
-## 七、目录结构
+## 八、目录结构
 
 ```
 .
@@ -128,7 +160,7 @@ baidudrive=百度网盘
 └── scripts/build-ipk.sh           # 不依赖 SDK 打包 ipk
 ```
 
-## 八、构建 ipk
+## 九、构建 ipk
 
 无需 OpenWrt SDK：
 
@@ -143,7 +175,7 @@ VERSION=1.0.0 RELEASE=1 sh scripts/build-ipk.sh
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-## 九、兼容性
+## 十、兼容性
 
 | 系统 | 说明 |
 | --- | --- |
@@ -152,7 +184,7 @@ git tag v1.0.0 && git push origin v1.0.0
 | iStoreOS | ✅ 同 LuCI 结构 |
 | 老版 Lua LuCI（<21.02） | ❌ 不支持（无 `menu.d` JSON 结构） |
 
-## 十、致谢
+## 十一、致谢
 
 - [LuCI](https://github.com/openwrt/luci) 项目结构与 `fs.exec` 机制
 - [mozillazg/pinyin-data](https://github.com/mozillazg/pinyin-data) 汉字拼音数据（MIT）

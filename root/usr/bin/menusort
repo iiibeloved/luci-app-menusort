@@ -8,9 +8,15 @@
 #    3) 只处理顶层 admin/services 节点；子菜单（homeproxy/* 等）不动。
 #
 #  用法：
-#    menusort              正向
-#    menusort reverse      反向（中文倒序在前，英文倒序在后）
+#    menusort              正向（英文 A-Z → 中文拼音）
+#    menusort reverse      反向（中文倒序 → 英文倒序）
 #    menusort --dry-run    只打印，不改文件
+#    menusort --list       只列出「运行时扫描到的服务菜单应用」，不改文件
+#    menusort --version    版本
+#
+#  说明：应用列表不是写死的 —— 每次运行都会重新扫描
+#        /usr/share/luci/menu.d/*.json 与 /usr/lib/lua/luci/controller/*.lua，
+#        因此新装/卸载应用后直接再点一次排序即可。
 #
 #  环境变量（测试用）：MENUSORT_MD / MENUSORT_LC / MENUSORT_PY / MENUSORT_LOG
 # =============================================================================
@@ -23,11 +29,15 @@ LOG="${MENUSORT_LOG:-/tmp/menusort.log}"
 
 MODE=forward
 DRY=0
+LIST_ONLY=0
+VERSION="1.0.2"
 for a in "$@"; do
 	case "$a" in
 		reverse) MODE=reverse ;;
 		forward) MODE=forward ;;
 		--dry-run|-n) DRY=1 ;;
+		--list|-l) LIST_ONLY=1; DRY=1 ;;
+		--version|-V) echo "menusort $VERSION"; exit 0 ;;
 	esac
 done
 
@@ -58,10 +68,17 @@ collect() {
 		[ -f "$f" ] || continue
 		awk -v F="$(basename "$f")" '
 			/"admin\/services\/[A-Za-z0-9_.-]+"[ \t]*:[ \t]*\{/ {
-				app=$0; sub(/.*"admin\/services\//, "", app); sub(/".*/, "", app); inblk=1; next
+				app=$0; sub(/.*"admin\/services\//, "", app); sub(/".*/, "", app)
+				# 单行写法：key 与 title 在同一行
+				if (index($0, "\"title\"")) {
+					t=$0; sub(/.*"title"[ \t]*:[ \t]*"/, "", t); sub(/".*/, "", t)
+					if (t == "") t = "-"; if (app != "") printf "%s\t%s\t%s\n", app, t, F
+					inblk=0; next
+				}
+				inblk=1; next
 			}
 			inblk && /"title"[ \t]*:/ {
-				t=$0; sub(/.*"title"[ \t]*:[ \t]*"/, "", t); sub(/".*/, "", t);
+				t=$0; sub(/.*"title"[ \t]*:[ \t]*"/, "", t); sub(/".*/, "", t)
 				if (t == "") t = "-"; if (app != "") printf "%s\t%s\t%s\n", app, t, F; inblk=0
 			}
 		' "$f"
@@ -128,6 +145,17 @@ apply_one() {   # $1=app  $2=order  $3=srcfile
 			;;
 	esac
 }
+
+if [ "$LIST_ONLY" = "1" ]; then
+	echo "== 扫描到的服务菜单应用（运行时）=="
+	collect | sort -u -t"$(printf '\t')" -k1,1 | while IFS="$(printf '\t')" read -r app title file; do
+		[ -n "$app" ] || continue
+		case "$app" in *_status) continue ;; esac
+		[ -n "$title" ] && [ "$title" != "-" ] || continue
+		printf '  %-24s %-24s %s\n' "$app" "$title" "$file"
+	done
+	exit 0
+fi
 
 KEYS=$(build_keys)
 [ -n "$KEYS" ] || { echo "未发现 admin/services 菜单项"; exit 3; }
