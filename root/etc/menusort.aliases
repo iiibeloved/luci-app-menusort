@@ -1,0 +1,14 @@
+# menusort 别名：app=界面显示名（用于把英文 msgid 归到中文分组）
+appfilter=应用过滤
+floatip=浮动网关
+ksmbd=网络共享
+ddns=动态 DNS
+nlbw=带宽监控
+wol=网络唤醒
+wolplus=网络唤醒+
+linkeasefull=易有云完整版
+baidudrive=百度网盘
+emmc-health=健康检测
+lan-wake=局域网设备唤醒
+lan-scanner=局域网设备扫描
+ksgc=缓存回收

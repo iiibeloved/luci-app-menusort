@@ -1,0 +1,70 @@
+name: build-ipk
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（不带 v），如 1.0.0"
+        required: true
+        default: "1.0.0"
+      publish:
+        description: "同时创建 Release（tag = v<版本>）"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 确定版本
+        id: ver
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="${{ github.event.inputs.version }}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "版本: $V"
+
+      - name: 构建 ipk
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}" RELEASE=1 sh scripts/build-ipk.sh
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luci-app-menusort-ipk
+          path: dist/*
+
+      - name: 发布 Release
+        if: ${{ startsWith(github.ref, 'refs/tags/') || inputs.publish }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.ver.outputs.version }}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then TAG="${GITHUB_REF_NAME}"; fi
+          {
+            echo "## luci-app-menusort ${TAG}"
+            echo ""
+            echo "- 架构：\`all\`（OpenWrt / ImmortalWrt / iStoreOS 通用）"
+            echo "- 本 Release 由 GitHub Actions 自动构建，产物含 sha256 校验文件"
+            echo ""
+            echo "### 安装"
+            echo '```sh'
+            echo "opkg install luci-app-menusort_*_all.ipk"
+            echo '```'
+            echo ""
+            echo "### 使用"
+            echo "LuCI → 系统 → 菜单排序 → 正向/反向排序（页面自动刷新）"
+          } > /tmp/notes.md
+          gh release create "$TAG" dist/*.ipk dist/*.sha256 \
+            --title "luci-app-menusort ${TAG}" --notes-file /tmp/notes.md \
+            || gh release upload "$TAG" dist/*.ipk dist/*.sha256 --clobber

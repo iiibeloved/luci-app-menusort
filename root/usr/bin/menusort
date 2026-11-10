@@ -1,0 +1,155 @@
+#!/bin/sh
+# =============================================================================
+#  menusort —— LuCI「服务」菜单一键排序（OpenWrt / ImmortalWrt / iStoreOS）
+#
+#  规则：
+#    1) 英文名应用在前，按英文名字母序（忽略大小写）；
+#    2) 中文名应用在后，按拼音首字母（内置 2 万+ 汉字首字母表），同首字母按标题排序；
+#    3) 只处理顶层 admin/services 节点；子菜单（homeproxy/* 等）不动。
+#
+#  用法：
+#    menusort              正向
+#    menusort reverse      反向（中文倒序在前，英文倒序在后）
+#    menusort --dry-run    只打印，不改文件
+#
+#  环境变量（测试用）：MENUSORT_MD / MENUSORT_LC / MENUSORT_PY / MENUSORT_LOG
+# =============================================================================
+
+MD="${MENUSORT_MD:-/usr/share/luci/menu.d}"
+LC="${MENUSORT_LC:-/usr/lib/lua/luci/controller}"
+PY="${MENUSORT_PY:-/usr/share/menusort/pinyin.tsv}"
+ALIAS="${MENUSORT_ALIAS:-/etc/menusort.aliases}"
+LOG="${MENUSORT_LOG:-/tmp/menusort.log}"
+
+MODE=forward
+DRY=0
+for a in "$@"; do
+	case "$a" in
+		reverse) MODE=reverse ;;
+		forward) MODE=forward ;;
+		--dry-run|-n) DRY=1 ;;
+	esac
+done
+
+log() { echo "$(date '+%F %T') $*" >> "$LOG" 2>/dev/null; }
+
+# 标题里的第一个汉字
+first_cjk() {
+	# 取字符串里第一个 CJK 字符（按 UTF-8 字节判断，避免 busybox/gawk 的 locale 问题）
+	printf '%s' "$1" | LC_ALL=C awk '
+		BEGIN { for (i = 32; i < 256; i++) B[sprintf("%c", i)] = i }
+		{
+			s = $0; n = length(s)
+			for (i = 1; i <= n; i++) {
+				v = B[substr(s, i, 1)]
+				if (v >= 228 && v <= 233) { print substr(s, i, 3); exit }
+			}
+		}'
+}
+
+# 汉字 -> 拼音（无声调）
+pinyin_syllable() {
+	awk -F'\t' -v c="$1" '$1 == c { print $2; exit }' "$PY" 2>/dev/null
+}
+
+# 收集：app<TAB>title<TAB>srcfile
+collect() {
+	for f in "$MD"/*.json; do
+		[ -f "$f" ] || continue
+		awk -v F="$(basename "$f")" '
+			/"admin\/services\/[A-Za-z0-9_.-]+"[ \t]*:[ \t]*\{/ {
+				app=$0; sub(/.*"admin\/services\//, "", app); sub(/".*/, "", app); inblk=1; next
+			}
+			inblk && /"title"[ \t]*:/ {
+				t=$0; sub(/.*"title"[ \t]*:[ \t]*"/, "", t); sub(/".*/, "", t);
+				if (t == "") t = "-"; if (app != "") printf "%s\t%s\t%s\n", app, t, F; inblk=0
+			}
+		' "$f"
+	done
+	for f in "$LC"/*.lua; do
+		[ -f "$f" ] || continue
+		awk -v F="$(basename "$f")" '
+			/"admin",[ \t]*"services",[ \t]*"[A-Za-z0-9_.-]+"[ \t]*}/ {
+				line=$0
+				app=line; sub(/.*"services",[ \t]*"/, "", app); sub(/".*/, "", app)
+				t=""
+				if (match(line, /_[ \t]*\([ \t]*"[^"]*"/)) {
+					t=substr(line, RSTART, RLENGTH)
+					sub(/.*_[ \t]*\([ \t]*"/, "", t); sub(/"$/, "", t)
+				}
+				if (t == "") t = "-"; if (app != "") printf "%s\t%s\t%s\n", app, t, F
+			}
+		' "$f"
+	done
+}
+
+# 排序键：英文(0,小写标题) 在前，中文(1,首字母+标题) 在后
+build_keys() {
+	collect | sort -u -t"$(printf '\t')" -k1,1 | while IFS="$(printf '\t')" read -r app title file; do
+		[ -n "$app" ] || continue
+		case "$app" in *_status) continue ;; esac
+		[ -n "$title" ] && [ "$title" != "-" ] || continue
+		# 别名（把英文 msgid 映射成界面显示的中文名，用于分组/排序）
+		if [ -f "$ALIAS" ]; then
+			al=$(sed -n "s/^$app=//p" "$ALIAS" 2>/dev/null | head -1)
+			[ -n "$al" ] && title="$al"
+		fi
+		cjk=$(first_cjk "$title")
+		if [ -n "$cjk" ]; then
+			syl=$(pinyin_syllable "$cjk")
+			[ -n "$syl" ] || syl="zzzz"
+			printf '1\t%s\t%s\t%s\t%s\n' "$syl" "$title" "$app" "$file"
+		else
+			printf '0\t%s\t%s\t%s\t%s\n' "$(printf '%s' "$title" | tr 'A-Z' 'a-z')" "$title" "$app" "$file"
+		fi
+	done | sort -t"$(printf '\t')" -k1,1n -k2,2 -k3,3
+}
+
+apply_one() {   # $1=app  $2=order  $3=srcfile
+	app=$1; ord=$2; file=$3
+	[ "$DRY" = "1" ] && return 0
+
+	case "$file" in
+		*.json)
+			f="$MD/$file"
+			awk -v k="\"admin/services/$app\"" -v n="$ord" '
+				index($0, k) { inblk=1 }
+				inblk && /"order"[ \t]*:/ { sub(/"order"[ \t]*:[ \t]*-?[0-9]+/, "\"order\": " n); inblk=0 }
+				{ print }
+			' "$f" > "$f.tmp" 2>/dev/null && mv "$f.tmp" "$f"
+			;;
+		*.lua)
+			f="$LC/$file"
+			if [ "$app" = "passwall" ]; then
+				sed -i '/services", appname}/ s/,[[:space:]]*-\{0,1\}[0-9]\{1,\})/, '"$ord"')/' "$f" 2>/dev/null
+			else
+				sed -i '/"services", "'"$app"'"}/ s/,[[:space:]]*-\{0,1\}[0-9]\{1,\})/, '"$ord"')/' "$f" 2>/dev/null
+			fi
+			;;
+	esac
+}
+
+KEYS=$(build_keys)
+[ -n "$KEYS" ] || { echo "未发现 admin/services 菜单项"; exit 3; }
+
+[ "$MODE" = "reverse" ] && KEYS=$(printf '%s\n' "$KEYS" | tac)
+
+echo "== menusort ($MODE) =="
+i=10
+printf '%s\n' "$KEYS" | while IFS="$(printf '\t')" read -r grp k1 title app file; do
+	[ -n "$app" ] || continue
+	printf '  %-4d %-24s %s\n' "$i" "$app" "$title"
+	i=$((i + 10))
+done
+
+i=10
+printf '%s\n' "$KEYS" | while IFS="$(printf '\t')" read -r grp k1 title app file; do
+	[ -n "$app" ] || continue
+	apply_one "$app" "$i" "$file"
+	i=$((i + 10))
+done
+
+[ "$DRY" = "0" ] && rm -f /tmp/luci-indexcache* 2>/dev/null
+log "mode=$MODE apps=$(printf '%s\n' "$KEYS" | grep -c .)"
+echo "完成：mode=$MODE"
+exit 0

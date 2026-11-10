@@ -1,0 +1,16 @@
+{
+	"luci-app-menusort": {
+		"description": "LuCI 菜单排序",
+		"read": {
+			"file": {
+				"/usr/bin/menusort": [ "exec" ],
+				"/tmp/menusort.log": [ "read" ]
+			}
+		},
+		"write": {
+			"file": {
+				"/usr/bin/menusort": [ "exec" ]
+			}
+		}
+	}
+}
